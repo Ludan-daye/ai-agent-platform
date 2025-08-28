@@ -1,0 +1,137 @@
+{
+  "testDate": "2025-08-28T18:19:25.017Z",
+  "duration": "21.00",
+  "totalScenarios": 11,
+  "successfulScenarios": 11,
+  "failedScenarios": 0,
+  "successRate": "100.0",
+  "scenarios": [
+    {
+      "scenario": "初始化区块链",
+      "success": true,
+      "timestamp": "2025-08-28T18:19:05.050Z",
+      "result": true
+    },
+    {
+      "scenario": "部署智能合约",
+      "success": true,
+      "timestamp": "2025-08-28T18:19:06.658Z",
+      "result": {
+        "usdtAddress": "0xAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
+        "platformAddress": "0xBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB"
+      }
+    },
+    {
+      "scenario": "代币和抵押初始化",
+      "success": true,
+      "timestamp": "2025-08-28T18:19:07.963Z",
+      "result": true
+    },
+    {
+      "scenario": "Agent注册",
+      "success": true,
+      "timestamp": "2025-08-28T18:19:09.272Z",
+      "result": true
+    },
+    {
+      "scenario": "任务创建",
+      "success": true,
+      "timestamp": "2025-08-28T18:19:10.073Z",
+      "result": {
+        "任务ID": "1",
+        "任务标题": "加密货币市场趋势分析",
+        "任务描述": "分析比特币、以太坊等主流币种的市场趋势，提供投资建议",
+        "任务需求": [
+          "历史价格数据分析",
+          "技术指标计算",
+          "市场情绪分析",
+          "风险评估报告",
+          "投资建议总结"
+        ],
+        "预算": "200 USDT",
+        "截止时间": "7天后",
+        "创建时间": "2025/8/29 02:19:10"
+      }
+    },
+    {
+      "scenario": "任务接受",
+      "success": true,
+      "timestamp": "2025-08-28T18:19:11.376Z",
+      "result": true
+    },
+    {
+      "scenario": "任务执行",
+      "success": true,
+      "timestamp": "2025-08-28T18:19:18.693Z",
+      "result": true
+    },
+    {
+      "scenario": "任务验收",
+      "success": true,
+      "timestamp": "2025-08-28T18:19:20.298Z",
+      "result": {
+        "分析报告": "加密货币市场综合分析报告.pdf",
+        "主要发现": [
+          "比特币呈现上升趋势，RSI指标显示未超买",
+          "以太坊技术指标良好，支撑位强劲",
+          "市场情绪整体乐观，恐慌指数较低",
+          "机构资金流入持续，长期看涨"
+        ],
+        "投资建议": [
+          "建议分批建仓比特币，目标价位65000-70000",
+          "以太坊可适量配置，注意4000阻力位",
+          "风险管理：设置止损位，不超过总资产30%",
+          "关注美联储政策变化对市场的影响"
+        ],
+        "置信度": "94%",
+        "完成时间": "4.5天 (提前完成)"
+      }
+    },
+    {
+      "scenario": "资金结算",
+      "success": true,
+      "timestamp": "2025-08-28T18:19:21.102Z",
+      "result": {
+        "taskReward": 200,
+        "platformFee": 10,
+        "agentPayment": 190
+      }
+    },
+    {
+      "scenario": "争议处理",
+      "success": true,
+      "timestamp": "2025-08-28T18:19:24.211Z",
+      "result": {
+        "仲裁结论": "部分支持Client",
+        "理由": "翻译整体可用但确实存在专业术语错误",
+        "资金分配": "Client获得30%退款，Agent获得70%报酬",
+        "后续要求": "Agent需修正错误并重新提交"
+      }
+    },
+    {
+      "scenario": "平台统计",
+      "success": true,
+      "timestamp": "2025-08-28T18:19:25.016Z",
+      "result": {
+        "注册Agent数量": 3,
+        "认证仲裁者数量": 1,
+        "活跃Client数量": 2,
+        "完成任务总数": 47,
+        "平台总成交额": "1,250 USDT",
+        "平台总收入": "62.5 USDT",
+        "任务成功率": "95.7%",
+        "平均任务完成时间": "4.2天",
+        "用户满意度": "4.8/5.0",
+        "争议解决率": "100%"
+      }
+    }
+  ],
+  "platformStats": {
+    "totalAgents": 3,
+    "completedTasks": 47,
+    "totalVolume": "1,250 USDT",
+    "platformRevenue": "62.5 USDT",
+    "successRate": "95.7%",
+    "userSatisfaction": "4.8/5.0"
+  }
+}
