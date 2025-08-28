@@ -389,10 +389,8 @@ git checkout -b feature/your-feature-name
 
 ## 📞 联系我们
 
-- **项目主页**: [GitHub Repository](https://github.com/your-org/ai-agent-platform)
-- **技术文档**: [Documentation](https://docs.ai-agent-platform.com)
-- **社区讨论**: [Discord](https://discord.gg/ai-agent-platform)
-- **商务合作**: business@ai-agent-platform.com
+- **项目主页**: [GitHub Repository]([https://github.com/](https://github.com/Ludan-daye/ai-agent-platform/)
+- **商务合作**: Ludandaye@gmail.com
 
 ---
 
