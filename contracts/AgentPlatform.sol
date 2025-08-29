@@ -17,6 +17,18 @@ contract AgentPlatform is ReentrancyGuard, Ownable {
     uint256 public constant MAX_KEYWORDS_PER_AGENT = 10; // Maximum keywords per agent
     uint256 public constant RATE_PRECISION = 1e6; // For success rate calculations
     
+    // Enhanced ranking and reputation constants
+    uint256 public constant RECENT_TASK_WINDOW = 30 days; // Recent performance window
+    uint256 public constant MAX_RECENT_TASKS = 50; // Maximum recent tasks stored
+    uint256 public constant QUALITY_PRECISION = 10; // Quality score precision multiplier
+    uint256 public constant REPUTATION_MAX_SCORE = 100; // Maximum reputation score
+    
+    // Ranking weight factors (sum should be 100 for percentage)
+    uint256 public constant STAKE_WEIGHT = 60; // Collateral weight 60%
+    uint256 public constant PERFORMANCE_WEIGHT = 25; // Recent performance 25%
+    uint256 public constant QUALITY_WEIGHT = 10; // Quality score 10%
+    uint256 public constant ACTIVITY_WEIGHT = 5; // Activity consistency 5%
+    
     // Agent Card structure
     struct AgentCard {
         string[] keywords;
@@ -35,7 +47,28 @@ contract AgentPlatform is ReentrancyGuard, Ownable {
         uint256 timestamp;
     }
     
-    // Step 2: Agent metadata with performance tracking
+    // Enhanced task completion tracking structure
+    struct TaskRecord {
+        bytes32 taskId;
+        uint256 startTime;
+        uint256 endTime;
+        bool isCompleted;
+        bool isSuccessful;
+        uint256 taskValue;
+        TaskCategory category;
+        uint8 qualityScore; // 1-10 quality rating
+    }
+    
+    enum TaskCategory {
+        DataProcessing,
+        ContentCreation, 
+        Analysis,
+        Automation,
+        Research,
+        Custom
+    }
+    
+    // Step 2: Agent metadata with enhanced performance tracking
     struct AgentMeta {
         uint256 stake;
         uint256 successRate; // Rate in RATE_PRECISION (1e6)
@@ -45,6 +78,15 @@ contract AgentPlatform is ReentrancyGuard, Ownable {
         string[] keywords;
         bool isActive;
         PerformanceSnapshot[] snapshots; // Sliding window snapshots
+        // New enhanced tracking fields
+        uint256 totalTasksEver;
+        uint256 completedTasksEver;
+        uint256 totalValueEarned;
+        uint256 averageQualityScore; // Average quality * 10 (to avoid decimals)
+        uint256 recentCompletionRate; // Last 30 days completion rate
+        uint256 consecutiveSuccesses;
+        uint256 consecutiveFailures;
+        TaskRecord[] recentTasks; // Last 50 tasks for detailed tracking
     }
     
     // Step 2: Keyword statistics
@@ -245,6 +287,32 @@ contract AgentPlatform is ReentrancyGuard, Ownable {
         uint256 windowEnd
     );
     
+    // Enhanced task tracking events
+    event TaskStarted(
+        address indexed agent,
+        bytes32 indexed taskId,
+        TaskCategory category,
+        uint256 taskValue,
+        uint256 timestamp
+    );
+    event TaskCompleted(
+        address indexed agent,
+        bytes32 indexed taskId,
+        bool isSuccessful,
+        uint8 qualityScore,
+        uint256 completionTime,
+        uint256 timestamp
+    );
+    event AgentReputationUpdated(
+        address indexed agent,
+        uint256 reputationScore,
+        uint256 rankingScore,
+        uint256 stakeComponent,
+        uint256 performanceComponent,
+        uint256 qualityComponent,
+        uint256 activityComponent
+    );
+    
     // Step 3: Balance operation events
     event BalanceAssigned(
         address indexed user,
@@ -337,8 +405,8 @@ contract AgentPlatform is ReentrancyGuard, Ownable {
     );
     event OrderEscrowUpdated(
         bytes32 indexed orderId,
-        uint256 before,
-        uint256 after,
+        uint256 beforeAmount,
+        uint256 afterAmount,
         string action
     );
     event ArbitratorRewarded(
@@ -496,9 +564,101 @@ contract AgentPlatform is ReentrancyGuard, Ownable {
         return qualifiedBuyers;
     }
     
-    // ============= STEP 2: RANKING & KEYWORD FUNCTIONS =============
+    // ============= STEP 2: ENHANCED RANKING & TASK TRACKING FUNCTIONS =============
     
-    // A. Agent ranking with explainable scores
+    // A. Task completion tracking functions
+    function startTask(
+        bytes32 taskId,
+        TaskCategory category,
+        uint256 taskValue
+    ) external onlyQualifiedAgent {
+        AgentMeta storage meta = agentMetas[msg.sender];
+        
+        // Check if agent already has this task
+        for (uint256 i = 0; i < meta.recentTasks.length; i++) {
+            require(meta.recentTasks[i].taskId != taskId, "Task already exists");
+        }
+        
+        // Create new task record
+        TaskRecord memory newTask = TaskRecord({
+            taskId: taskId,
+            startTime: block.timestamp,
+            endTime: 0,
+            isCompleted: false,
+            isSuccessful: false,
+            taskValue: taskValue,
+            category: category,
+            qualityScore: 0
+        });
+        
+        // Add to recent tasks (maintain max size)
+        if (meta.recentTasks.length >= MAX_RECENT_TASKS) {
+            // Remove oldest task
+            for (uint256 i = 0; i < meta.recentTasks.length - 1; i++) {
+                meta.recentTasks[i] = meta.recentTasks[i + 1];
+            }
+            meta.recentTasks[meta.recentTasks.length - 1] = newTask;
+        } else {
+            meta.recentTasks.push(newTask);
+        }
+        
+        meta.totalTasksEver++;
+        
+        emit TaskStarted(msg.sender, taskId, category, taskValue, block.timestamp);
+    }
+    
+    function completeTask(
+        bytes32 taskId,
+        bool isSuccessful,
+        uint8 qualityScore
+    ) external onlyQualifiedAgent {
+        require(qualityScore >= 1 && qualityScore <= 10, "Quality score must be 1-10");
+        
+        AgentMeta storage meta = agentMetas[msg.sender];
+        bool taskFound = false;
+        uint256 taskIndex = 0;
+        uint256 taskStartTime = 0;
+        uint256 taskValue = 0;
+        
+        // Find and update the task
+        for (uint256 i = 0; i < meta.recentTasks.length; i++) {
+            if (meta.recentTasks[i].taskId == taskId && !meta.recentTasks[i].isCompleted) {
+                meta.recentTasks[i].isCompleted = true;
+                meta.recentTasks[i].isSuccessful = isSuccessful;
+                meta.recentTasks[i].qualityScore = qualityScore;
+                meta.recentTasks[i].endTime = block.timestamp;
+                taskFound = true;
+                taskIndex = i;
+                taskStartTime = meta.recentTasks[i].startTime;
+                taskValue = meta.recentTasks[i].taskValue;
+                break;
+            }
+        }
+        
+        require(taskFound, "Task not found or already completed");
+        
+        // Update agent statistics
+        meta.completedTasksEver++;
+        if (isSuccessful) {
+            meta.totalValueEarned += taskValue;
+            meta.consecutiveSuccesses++;
+            meta.consecutiveFailures = 0;
+        } else {
+            meta.consecutiveSuccesses = 0;
+            meta.consecutiveFailures++;
+        }
+        
+        // Update recent completion rate and quality score
+        _updateAgentMetrics(msg.sender);
+        
+        uint256 completionTime = block.timestamp - taskStartTime;
+        emit TaskCompleted(msg.sender, taskId, isSuccessful, qualityScore, completionTime, block.timestamp);
+        
+        // Update reputation score
+        _updateAgentReputation(msg.sender);
+    }
+    
+    // B. Enhanced agent ranking with comprehensive scoring
     function getAgentScore(address agent) 
         external 
         view 
@@ -518,13 +678,94 @@ contract AgentPlatform is ReentrancyGuard, Ownable {
         successRate = meta.successRate;
         windowSize = PERFORMANCE_WINDOW;
         
-        // Score = stake × success_rate (normalized to RATE_PRECISION)
-        score = (stake * successRate) / RATE_PRECISION;
+        // Use comprehensive ranking score instead of simple calculation
+        score = _calculateComprehensiveScore(agent);
         
         // If no performance data, use stake only
         if (successRate == 0 && meta.completedLastWindow == 0) {
             score = stake;
             successRate = RATE_PRECISION; // 100% default
+        }
+    }
+    
+    // C. Comprehensive scoring system
+    function getAgentRanking(address agent) 
+        external 
+        view 
+        returns (
+            uint256 totalScore,
+            uint256 reputationScore, // 0-100
+            uint256 stakeComponent,
+            uint256 performanceComponent,
+            uint256 qualityComponent,
+            uint256 activityComponent
+        ) 
+    {
+        if (!agents[agent].isQualified || agents[agent].stakedAmount < agentMinStake) {
+            return (0, 0, 0, 0, 0, 0);
+        }
+        
+        AgentMeta memory meta = agentMetas[agent];
+        
+        // 1. Stake component (60% weight, normalized to agent min stake)
+        uint256 normalizedStake = meta.stake > 0 ? meta.stake : agents[agent].stakedAmount;
+        stakeComponent = (normalizedStake * 100) / agentMinStake; // Base 100 for min stake
+        if (stakeComponent > 1000) stakeComponent = 1000; // Cap at 10x min stake = 1000 points
+        
+        // 2. Performance component (25% weight)
+        uint256 recentTasks = _getRecentTasksCount(agent, RECENT_TASK_WINDOW);
+        uint256 recentSuccessful = _getRecentSuccessfulTasks(agent, RECENT_TASK_WINDOW);
+        
+        if (recentTasks > 0) {
+            performanceComponent = (recentSuccessful * 100) / recentTasks;
+            
+            // Penalty for poor performance
+            if (performanceComponent < 50) {
+                performanceComponent = performanceComponent / 2; // Heavy penalty below 50%
+            }
+            
+            // Boost for consistent high performance
+            if (meta.consecutiveSuccesses >= 10) {
+                performanceComponent = performanceComponent + 20; // Bonus for 10+ consecutive successes
+                if (performanceComponent > 150) performanceComponent = 150;
+            }
+        } else {
+            performanceComponent = 70; // Default score for new agents
+        }
+        
+        // 3. Quality component (10% weight)
+        qualityComponent = meta.averageQualityScore; // Already multiplied by 10
+        if (qualityComponent == 0) qualityComponent = 70; // Default for new agents
+        
+        // 4. Activity component (5% weight)
+        uint256 daysSinceLastActive = meta.lastActiveAt > 0 ? 
+            (block.timestamp - meta.lastActiveAt) / 1 days : 365;
+        
+        if (daysSinceLastActive <= 1) activityComponent = 100;
+        else if (daysSinceLastActive <= 7) activityComponent = 80;
+        else if (daysSinceLastActive <= 30) activityComponent = 60;
+        else if (daysSinceLastActive <= 90) activityComponent = 40;
+        else activityComponent = 20;
+        
+        // Calculate weighted total
+        totalScore = (stakeComponent * STAKE_WEIGHT + 
+                     performanceComponent * PERFORMANCE_WEIGHT +
+                     qualityComponent * QUALITY_WEIGHT + 
+                     activityComponent * ACTIVITY_WEIGHT) / 100;
+        
+        // Reputation score (0-100 scale) with performance penalties
+        reputationScore = (performanceComponent * 40 + qualityComponent * 30 + 
+                          activityComponent * 20 + (stakeComponent > 100 ? 100 : stakeComponent) * 10) / 100;
+        
+        // Heavy penalty for recent failures
+        if (meta.consecutiveFailures >= 3) {
+            reputationScore = reputationScore * 70 / 100; // 30% penalty
+        } else if (meta.consecutiveFailures >= 5) {
+            reputationScore = reputationScore / 2; // 50% penalty
+        }
+        
+        if (reputationScore > REPUTATION_MAX_SCORE) {
+            reputationScore = REPUTATION_MAX_SCORE;
         }
     }
     
@@ -640,35 +881,82 @@ contract AgentPlatform is ReentrancyGuard, Ownable {
         return _getPaginatedAgents(keywordAgents, offset, limit);
     }
     
-    // D. Admin functions for cache management
+    // D. Enhanced ranking and sorting functions
     function rebuildAgentRanking() external {
         delete agentRankingCache;
         
-        // Simple bubble sort for demonstration - in production use more efficient sorting
-        address[] memory agents = qualifiedAgents;
-        uint256 n = agents.length;
+        // Enhanced bubble sort using comprehensive scoring
+        address[] memory agentList = qualifiedAgents;
+        uint256 n = agentList.length;
         
         for (uint256 i = 0; i < n - 1; i++) {
             for (uint256 j = 0; j < n - i - 1; j++) {
-                (uint256 scoreJ, , , ) = this.getAgentScore(agents[j]);
-                (uint256 scoreJ1, , , ) = this.getAgentScore(agents[j + 1]);
+                uint256 scoreJ = _calculateComprehensiveScore(agentList[j]);
+                uint256 scoreJ1 = _calculateComprehensiveScore(agentList[j + 1]);
                 
                 if (scoreJ < scoreJ1) {
-                    address temp = agents[j];
-                    agents[j] = agents[j + 1];
-                    agents[j + 1] = temp;
+                    address temp = agentList[j];
+                    agentList[j] = agentList[j + 1];
+                    agentList[j + 1] = temp;
                 }
             }
         }
         
-        agentRankingCache = agents;
+        agentRankingCache = agentList;
         lastRankingUpdate = block.timestamp;
         
         emit AgentRankingRebuilt(
-            agents.length,
+            agentList.length,
             block.timestamp - PERFORMANCE_WINDOW,
             block.timestamp
         );
+    }
+    
+    // E. Get top performing agents with reputation scores
+    function getTopAgentsByReputation(uint256 limit) 
+        external 
+        view 
+        returns (
+            address[] memory agentAddresses,
+            uint256[] memory reputationScores,
+            uint256[] memory totalScores
+        ) 
+    {
+        address[] memory allAgents = qualifiedAgents;
+        uint256 agentCount = allAgents.length < limit ? allAgents.length : limit;
+        
+        agentAddresses = new address[](agentCount);
+        reputationScores = new uint256[](agentCount);
+        totalScores = new uint256[](agentCount);
+        
+        // Simple selection of top agents - can be optimized with better sorting
+        for (uint256 i = 0; i < agentCount; i++) {
+            agentAddresses[i] = allAgents[i];
+            (uint256 totalScore, uint256 reputationScore, , , , ) = this.getAgentRanking(allAgents[i]);
+            totalScores[i] = totalScore;
+            reputationScores[i] = reputationScore;
+        }
+        
+        // Bubble sort by reputation score
+        for (uint256 i = 0; i < agentCount - 1; i++) {
+            for (uint256 j = 0; j < agentCount - i - 1; j++) {
+                if (reputationScores[j] < reputationScores[j + 1]) {
+                    // Swap agents
+                    address tempAgent = agentAddresses[j];
+                    agentAddresses[j] = agentAddresses[j + 1];
+                    agentAddresses[j + 1] = tempAgent;
+                    
+                    // Swap scores
+                    uint256 tempRep = reputationScores[j];
+                    reputationScores[j] = reputationScores[j + 1];
+                    reputationScores[j + 1] = tempRep;
+                    
+                    uint256 tempTotal = totalScores[j];
+                    totalScores[j] = totalScores[j + 1];
+                    totalScores[j + 1] = tempTotal;
+                }
+            }
+        }
     }
     
     // ============= INTERNAL HELPER FUNCTIONS =============
@@ -698,6 +986,87 @@ contract AgentPlatform is ReentrancyGuard, Ownable {
         
         // Update stake reference
         meta.stake = agents[agent].stakedAmount;
+    }
+    
+    // Enhanced helper functions for new ranking system
+    function _updateAgentMetrics(address agent) internal {
+        AgentMeta storage meta = agentMetas[agent];
+        
+        // Update recent completion rate (last 30 days)
+        uint256 recentTasks = _getRecentTasksCount(agent, RECENT_TASK_WINDOW);
+        uint256 recentSuccessful = _getRecentSuccessfulTasks(agent, RECENT_TASK_WINDOW);
+        
+        if (recentTasks > 0) {
+            meta.recentCompletionRate = (recentSuccessful * RATE_PRECISION) / recentTasks;
+        }
+        
+        // Update average quality score
+        uint256 totalQuality = 0;
+        uint256 completedTasks = 0;
+        
+        for (uint256 i = 0; i < meta.recentTasks.length; i++) {
+            if (meta.recentTasks[i].isCompleted) {
+                totalQuality += meta.recentTasks[i].qualityScore;
+                completedTasks++;
+            }
+        }
+        
+        if (completedTasks > 0) {
+            meta.averageQualityScore = (totalQuality * QUALITY_PRECISION) / completedTasks;
+        }
+        
+        meta.lastActiveAt = block.timestamp;
+    }
+    
+    function _updateAgentReputation(address agent) internal {
+        (uint256 totalScore, uint256 reputationScore, uint256 stakeComponent, 
+         uint256 performanceComponent, uint256 qualityComponent, uint256 activityComponent) = 
+         this.getAgentRanking(agent);
+        
+        emit AgentReputationUpdated(
+            agent, 
+            reputationScore, 
+            totalScore, 
+            stakeComponent, 
+            performanceComponent, 
+            qualityComponent, 
+            activityComponent
+        );
+    }
+    
+    function _getRecentTasksCount(address agent, uint256 timeWindow) internal view returns (uint256) {
+        AgentMeta memory meta = agentMetas[agent];
+        uint256 windowStart = block.timestamp - timeWindow;
+        uint256 count = 0;
+        
+        for (uint256 i = 0; i < meta.recentTasks.length; i++) {
+            if (meta.recentTasks[i].startTime >= windowStart && meta.recentTasks[i].isCompleted) {
+                count++;
+            }
+        }
+        
+        return count;
+    }
+    
+    function _getRecentSuccessfulTasks(address agent, uint256 timeWindow) internal view returns (uint256) {
+        AgentMeta memory meta = agentMetas[agent];
+        uint256 windowStart = block.timestamp - timeWindow;
+        uint256 count = 0;
+        
+        for (uint256 i = 0; i < meta.recentTasks.length; i++) {
+            if (meta.recentTasks[i].startTime >= windowStart && 
+                meta.recentTasks[i].isCompleted && 
+                meta.recentTasks[i].isSuccessful) {
+                count++;
+            }
+        }
+        
+        return count;
+    }
+    
+    function _calculateComprehensiveScore(address agent) internal view returns (uint256) {
+        (uint256 totalScore, , , , , ) = this.getAgentRanking(agent);
+        return totalScore;
     }
     
     function _normalizeKeyword(string memory keyword) internal pure returns (string memory) {
@@ -970,13 +1339,13 @@ contract AgentPlatform is ReentrancyGuard, Ownable {
     ) external view returns (
         uint256 totalDeposited,
         uint256 totalClaimed,
-        uint256 availableBalance,
+        uint256 availableBalanceAmount,
         bool canRefund
     ) {
         totalDeposited = balances[user][agent][category];
         totalClaimed = claimedBalances[user][agent][category];
-        availableBalance = totalDeposited >= totalClaimed ? totalDeposited - totalClaimed : 0;
-        canRefund = availableBalance > refundFee;
+        availableBalanceAmount = totalDeposited >= totalClaimed ? totalDeposited - totalClaimed : 0;
+        canRefund = availableBalanceAmount > refundFee;
     }
     
     // H. Emergency functions (for security)
@@ -987,24 +1356,24 @@ contract AgentPlatform is ReentrancyGuard, Ownable {
     
     // I. Batch operations for efficiency
     function batchDeposit(
-        address[] memory agents,
+        address[] memory agentsList,
         bytes32[] memory categories,
         uint256[] memory amounts
     ) external nonReentrant {
-        require(agents.length == categories.length && categories.length == amounts.length, "Array length mismatch");
+        require(agentsList.length == categories.length && categories.length == amounts.length, "Array length mismatch");
         
         uint256 totalAmount = 0;
         for (uint256 i = 0; i < amounts.length; i++) {
             totalAmount += amounts[i];
             require(amounts[i] >= minDepositAmount, "Amount below minimum");
-            require(agents[agents[i]].isQualified, "Agent not qualified");
+            require(agents[agentsList[i]].isQualified, "Agent not qualified");
         }
         
         require(usdtToken.transferFrom(msg.sender, address(this), totalAmount), "Batch transfer failed");
         
-        for (uint256 i = 0; i < agents.length; i++) {
-            balances[msg.sender][agents[i]][categories[i]] += amounts[i];
-            emit BalanceAssigned(msg.sender, agents[i], categories[i], amounts[i]);
+        for (uint256 i = 0; i < agentsList.length; i++) {
+            balances[msg.sender][agentsList[i]][categories[i]] += amounts[i];
+            emit BalanceAssigned(msg.sender, agentsList[i], categories[i], amounts[i]);
         }
     }
     
@@ -1588,7 +1957,7 @@ contract AgentPlatform is ReentrancyGuard, Ownable {
         string memory reason,
         uint256 openedAt,
         uint256 votingDeadline,
-        uint256 escrowFrozen,
+        uint256 escrowFrozenAmount,
         bool isFinalized,
         DisputeOption finalDecision
     ) {
@@ -1676,5 +2045,218 @@ contract AgentPlatform is ReentrancyGuard, Ownable {
         require(amount <= platformTreasury, "Insufficient treasury balance");
         platformTreasury -= amount;
         require(usdtToken.transfer(to, amount), "Treasury withdrawal failed");
+    }
+    
+    // ============= ENHANCED VIEW FUNCTIONS FOR TASK TRACKING & RANKING =============
+    
+    // Agent task history and statistics
+    function getAgentTaskHistory(address agent, uint256 limit) 
+        external 
+        view 
+        returns (TaskRecord[] memory) 
+    {
+        AgentMeta memory meta = agentMetas[agent];
+        uint256 taskCount = meta.recentTasks.length < limit ? meta.recentTasks.length : limit;
+        
+        TaskRecord[] memory tasks = new TaskRecord[](taskCount);
+        
+        // Return most recent tasks
+        uint256 startIndex = meta.recentTasks.length > limit ? 
+            meta.recentTasks.length - limit : 0;
+            
+        for (uint256 i = 0; i < taskCount; i++) {
+            tasks[i] = meta.recentTasks[startIndex + i];
+        }
+        
+        return tasks;
+    }
+    
+    function getAgentStatistics(address agent) 
+        external 
+        view 
+        returns (
+            uint256 totalTasks,
+            uint256 completedTasks,
+            uint256 totalValueEarned,
+            uint256 averageQuality,
+            uint256 recentCompletionRate,
+            uint256 consecutiveSuccesses,
+            uint256 consecutiveFailures,
+            uint256 recentTasksCount
+        ) 
+    {
+        AgentMeta memory meta = agentMetas[agent];
+        return (
+            meta.totalTasksEver,
+            meta.completedTasksEver,
+            meta.totalValueEarned,
+            meta.averageQualityScore,
+            meta.recentCompletionRate,
+            meta.consecutiveSuccesses,
+            meta.consecutiveFailures,
+            _getRecentTasksCount(agent, RECENT_TASK_WINDOW)
+        );
+    }
+    
+    // Enhanced agent comparison for buyers
+    function compareAgents(address[] memory agentList) 
+        external 
+        view 
+        returns (
+            uint256[] memory reputationScores,
+            uint256[] memory totalScores,
+            uint256[] memory stakes,
+            uint256[] memory completionRates,
+            uint256[] memory qualityScores
+        ) 
+    {
+        uint256 agentCount = agentList.length;
+        reputationScores = new uint256[](agentCount);
+        totalScores = new uint256[](agentCount);
+        stakes = new uint256[](agentCount);
+        completionRates = new uint256[](agentCount);
+        qualityScores = new uint256[](agentCount);
+        
+        for (uint256 i = 0; i < agentCount; i++) {
+            address agent = agentList[i];
+            
+            (uint256 totalScore, uint256 reputationScore, uint256 stakeComponent, 
+             uint256 performanceComponent, uint256 qualityComponent, ) = 
+             this.getAgentRanking(agent);
+            
+            reputationScores[i] = reputationScore;
+            totalScores[i] = totalScore;
+            stakes[i] = agents[agent].stakedAmount;
+            completionRates[i] = performanceComponent;
+            qualityScores[i] = qualityComponent;
+        }
+    }
+    
+    // Get agents filtered by minimum reputation score
+    function getAgentsByMinReputation(uint256 minReputationScore, uint256 limit) 
+        external 
+        view 
+        returns (
+            address[] memory filteredAgents,
+            uint256[] memory reputationScores
+        ) 
+    {
+        address[] memory allAgents = qualifiedAgents;
+        uint256 count = 0;
+        
+        // First pass: count qualifying agents
+        for (uint256 i = 0; i < allAgents.length; i++) {
+            (, uint256 reputationScore, , , , ) = this.getAgentRanking(allAgents[i]);
+            if (reputationScore >= minReputationScore && count < limit) {
+                count++;
+            }
+        }
+        
+        // Second pass: collect qualifying agents
+        filteredAgents = new address[](count);
+        reputationScores = new uint256[](count);
+        uint256 currentIndex = 0;
+        
+        for (uint256 i = 0; i < allAgents.length && currentIndex < count; i++) {
+            (, uint256 reputationScore, , , , ) = this.getAgentRanking(allAgents[i]);
+            if (reputationScore >= minReputationScore) {
+                filteredAgents[currentIndex] = allAgents[i];
+                reputationScores[currentIndex] = reputationScore;
+                currentIndex++;
+            }
+        }
+    }
+    
+    // Get detailed task breakdown by category for an agent
+    function getAgentTaskBreakdown(address agent) 
+        external 
+        view 
+        returns (
+            uint256[] memory categoryTasks,
+            uint256[] memory categorySuccesses,
+            uint256[] memory categoryValues
+        ) 
+    {
+        AgentMeta memory meta = agentMetas[agent];
+        categoryTasks = new uint256[](6); // Number of TaskCategory enum values
+        categorySuccesses = new uint256[](6);
+        categoryValues = new uint256[](6);
+        
+        for (uint256 i = 0; i < meta.recentTasks.length; i++) {
+            TaskRecord memory task = meta.recentTasks[i];
+            if (task.isCompleted) {
+                uint256 categoryIndex = uint256(task.category);
+                categoryTasks[categoryIndex]++;
+                
+                if (task.isSuccessful) {
+                    categorySuccesses[categoryIndex]++;
+                    categoryValues[categoryIndex] += task.taskValue;
+                }
+            }
+        }
+    }
+    
+    // Platform statistics and health metrics
+    function getPlatformStats() 
+        external 
+        view 
+        returns (
+            uint256 totalAgents,
+            uint256 totalActiveTasks,
+            uint256 totalCompletedTasks,
+            uint256 averagePlatformReputation,
+            uint256 topAgentReputation
+        ) 
+    {
+        totalAgents = qualifiedAgents.length;
+        
+        uint256 totalReputation = 0;
+        uint256 maxReputation = 0;
+        
+        for (uint256 i = 0; i < qualifiedAgents.length; i++) {
+            address agent = qualifiedAgents[i];
+            AgentMeta memory meta = agentMetas[agent];
+            
+            totalActiveTasks += _getActiveTasks(agent);
+            totalCompletedTasks += meta.completedTasksEver;
+            
+            (, uint256 reputation, , , , ) = this.getAgentRanking(agent);
+            totalReputation += reputation;
+            
+            if (reputation > maxReputation) {
+                maxReputation = reputation;
+            }
+        }
+        
+        averagePlatformReputation = totalAgents > 0 ? totalReputation / totalAgents : 0;
+        topAgentReputation = maxReputation;
+    }
+    
+    function _getActiveTasks(address agent) internal view returns (uint256) {
+        AgentMeta memory meta = agentMetas[agent];
+        uint256 activeTasks = 0;
+        
+        for (uint256 i = 0; i < meta.recentTasks.length; i++) {
+            if (!meta.recentTasks[i].isCompleted) {
+                activeTasks++;
+            }
+        }
+        
+        return activeTasks;
+    }
+    
+    // Admin function to update ranking weights (for future flexibility)
+    function updateRankingWeights(
+        uint256 newStakeWeight,
+        uint256 newPerformanceWeight,
+        uint256 newQualityWeight,
+        uint256 newActivityWeight
+    ) external onlyOwner {
+        require(
+            newStakeWeight + newPerformanceWeight + newQualityWeight + newActivityWeight == 100,
+            "Weights must sum to 100"
+        );
+        // Note: These are constants, so this would require contract upgrade
+        // This is a placeholder for demonstrating the concept
     }
 }
