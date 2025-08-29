@@ -1,0 +1,93 @@
+{
+  "testName": "AgentPlatformCore 精简版区块链测试",
+  "version": "v1.0-streamlined",
+  "timestamp": "2025-08-29T04:16:22.263Z",
+  "duration": 13.297,
+  "network": {
+    "type": "Hardhat Local Network",
+    "url": "http://127.0.0.1:8545",
+    "chainId": 31337,
+    "status": "running"
+  },
+  "contract": {
+    "name": "AgentPlatformCore",
+    "address": "0xe7f1725E7734CE288F8367e1Bb143E90bb3F0512",
+    "deployed": true
+  },
+  "testResults": [
+    {
+      "step": "network_start",
+      "success": true,
+      "details": "Hardhat network started successfully"
+    },
+    {
+      "step": "contract_deploy",
+      "success": true,
+      "details": {
+        "platformAddress": "0xe7f1725E7734CE288F8367e1Bb143E90bb3F0512",
+        "usdtAddress": "0x5FbDB2315678afecb367f032d93F642f64180aa3"
+      }
+    },
+    {
+      "step": "basic_functions",
+      "success": true,
+      "details": "Contract basic functions verified"
+    },
+    {
+      "step": "ranking_demo",
+      "success": true,
+      "details": "Ranking system demonstrated"
+    },
+    {
+      "step": "task_flow_demo",
+      "success": true,
+      "details": "Task flow demonstrated"
+    }
+  ],
+  "statistics": {
+    "totalTests": 5,
+    "passedTests": 5,
+    "failedTests": 0,
+    "successRate": 100
+  },
+  "accounts": [
+    {
+      "name": "Contract Deployer",
+      "role": "合约部署者",
+      "address": "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266",
+      "balance": 10000,
+      "description": "部署和管理智能合约"
+    },
+    {
+      "name": "Alice (Premium Client)",
+      "role": "高级客户",
+      "address": "0x70997970C51812dc3A010C7d01b50e0d17dc79C8",
+      "balance": 5000,
+      "description": "高价值任务委托方"
+    },
+    {
+      "name": "Bob (Agent)",
+      "role": "数据分析专家",
+      "address": "0x3C44CdDdB6a900fa2b585dd299e03d12FA4293BC",
+      "balance": 2000,
+      "description": "专业数据分析和机器学习专家",
+      "expertise": [
+        "数据挖掘",
+        "机器学习",
+        "统计分析"
+      ]
+    },
+    {
+      "name": "Charlie (Agent)",
+      "role": "区块链开发者",
+      "address": "0x90F79bf6EB2c4f870365E785982E1f101E93b906",
+      "balance": 1500,
+      "description": "智能合约开发专家",
+      "expertise": [
+        "智能合约",
+        "DeFi",
+        "区块链架构"
+      ]
+    }
+  ]
+}
