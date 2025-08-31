@@ -1,0 +1,52 @@
+{
+  "networkConfig": {
+    "provider": "http://127.0.0.1:8545",
+    "chainId": 1337,
+    "gasLimit": 8000000,
+    "gasPrice": "20000000000"
+  },
+  "testParameters": {
+    "agents": {
+      "count": 1000,
+      "minDeposit": 0.1,
+      "maxDeposit": 5,
+      "minSuccessRate": 0.6,
+      "maxSuccessRate": 0.95,
+      "specialtyTypes": [
+        "ai_inference",
+        "data_processing",
+        "content_creation"
+      ]
+    },
+    "users": {
+      "count": 10000,
+      "orderFrequency": 5,
+      "selectionStrategy": "smart",
+      "behaviorPatterns": [
+        "burst",
+        "steady",
+        "random"
+      ]
+    },
+    "simulation": {
+      "duration": 60,
+      "dataInterval": 5,
+      "rampUpTime": 2,
+      "scenarios": [
+        "normal_load",
+        "peak_load",
+        "stress_test"
+      ]
+    },
+    "monitoring": {
+      "metricsInterval": 1,
+      "enableRealtime": true,
+      "saveToFile": true,
+      "reportFormats": [
+        "json",
+        "csv",
+        "html"
+      ]
+    }
+  }
+}

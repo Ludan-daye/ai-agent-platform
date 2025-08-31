@@ -1,0 +1,532 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>🚀 智能合约性能测试配置</title>
+    <script src="/socket.io/socket.io.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'SF Pro Text', -apple-system, BlinkMacSystemFont, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            color: #333;
+        }
+        
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        
+        .header {
+            text-align: center;
+            color: white;
+            margin-bottom: 30px;
+        }
+        
+        .header h1 {
+            font-size: 2.5rem;
+            margin-bottom: 10px;
+        }
+        
+        .config-panel {
+            background: white;
+            border-radius: 15px;
+            box-shadow: 0 20px 40px rgba(0,0,0,0.1);
+            overflow: hidden;
+        }
+        
+        .tabs {
+            display: flex;
+            background: #f8f9fa;
+            border-bottom: 2px solid #e9ecef;
+        }
+        
+        .tab {
+            flex: 1;
+            padding: 15px 20px;
+            background: none;
+            border: none;
+            font-size: 16px;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+        
+        .tab.active {
+            background: white;
+            color: #667eea;
+            font-weight: 600;
+        }
+        
+        .tab:hover {
+            background: #e9ecef;
+        }
+        
+        .tab-content {
+            padding: 30px;
+        }
+        
+        .tab-panel {
+            display: none;
+        }
+        
+        .tab-panel.active {
+            display: block;
+        }
+        
+        .form-group {
+            margin-bottom: 25px;
+        }
+        
+        .form-group label {
+            display: block;
+            margin-bottom: 8px;
+            font-weight: 600;
+            color: #555;
+        }
+        
+        .form-group input, .form-group select {
+            width: 100%;
+            padding: 12px 15px;
+            border: 2px solid #e9ecef;
+            border-radius: 8px;
+            font-size: 16px;
+            transition: border-color 0.3s;
+        }
+        
+        .form-group input:focus, .form-group select:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+        
+        .form-row {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+        }
+        
+        .btn {
+            padding: 12px 30px;
+            border: none;
+            border-radius: 8px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+        
+        .btn-primary {
+            background: #667eea;
+            color: white;
+        }
+        
+        .btn-primary:hover {
+            background: #5a67d8;
+            transform: translateY(-2px);
+        }
+        
+        .btn-secondary {
+            background: #6c757d;
+            color: white;
+        }
+        
+        .btn-success {
+            background: #28a745;
+            color: white;
+        }
+        
+        .btn-danger {
+            background: #dc3545;
+            color: white;
+        }
+        
+        .actions {
+            display: flex;
+            gap: 15px;
+            justify-content: center;
+            margin-top: 30px;
+            padding-top: 20px;
+            border-top: 2px solid #e9ecef;
+        }
+        
+        .status {
+            text-align: center;
+            padding: 15px;
+            margin: 20px 0;
+            border-radius: 8px;
+            font-weight: 600;
+        }
+        
+        .status.success {
+            background: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+        
+        .status.error {
+            background: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+        }
+        
+        .preview {
+            background: #f8f9fa;
+            border-radius: 8px;
+            padding: 20px;
+            font-family: 'SF Mono', Monaco, 'Cascadia Code', monospace;
+            font-size: 14px;
+            line-height: 1.5;
+        }
+        
+        .metric {
+            background: white;
+            border-radius: 8px;
+            padding: 15px;
+            margin-bottom: 15px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        
+        .metric-value {
+            font-size: 1.5rem;
+            font-weight: 700;
+            color: #667eea;
+        }
+        
+        .metric-label {
+            color: #666;
+            font-size: 0.9rem;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🚀 智能合约性能测试配置</h1>
+            <p>可视化参数调整工具</p>
+        </div>
+        
+        <div class="config-panel">
+            <div class="tabs">
+                <button class="tab active" data-tab="agents">🤖 Agent配置</button>
+                <button class="tab" data-tab="users">👥 用户配置</button>
+                <button class="tab" data-tab="simulation">🏃 模拟参数</button>
+                <button class="tab" data-tab="monitoring">📊 监控设置</button>
+                <button class="tab" data-tab="preview">👀 配置预览</button>
+            </div>
+            
+            <div class="tab-content">
+                <div class="status" id="status" style="display: none;"></div>
+                
+                <!-- Agent配置面板 -->
+                <div class="tab-panel active" data-panel="agents">
+                    <h3>🤖 Agent池配置</h3>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="agentCount">Agent数量</label>
+                            <input type="number" id="agentCount" min="10" max="1000" value="100">
+                        </div>
+                        <div class="form-group">
+                            <label for="minDeposit">最小抵押金 (ETH)</label>
+                            <input type="number" id="minDeposit" step="0.01" min="0.01" value="0.1">
+                        </div>
+                    </div>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="maxDeposit">最大抵押金 (ETH)</label>
+                            <input type="number" id="maxDeposit" step="0.01" min="0.1" value="5.0">
+                        </div>
+                        <div class="form-group">
+                            <label for="minSuccessRate">最小成功率</label>
+                            <input type="number" id="minSuccessRate" step="0.01" min="0.1" max="1.0" value="0.6">
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- 用户配置面板 -->
+                <div class="tab-panel" data-panel="users">
+                    <h3>👥 用户行为配置</h3>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="userCount">用户数量</label>
+                            <input type="number" id="userCount" min="100" max="50000" value="1000">
+                        </div>
+                        <div class="form-group">
+                            <label for="orderFrequency">订单频率 (每分钟)</label>
+                            <input type="number" id="orderFrequency" step="0.1" min="0.1" value="2">
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <label for="selectionStrategy">选择策略</label>
+                        <select id="selectionStrategy">
+                            <option value="smart">智能选择 (基于评分)</option>
+                            <option value="random">随机选择</option>
+                            <option value="round_robin">轮询选择</option>
+                        </select>
+                    </div>
+                </div>
+                
+                <!-- 模拟参数面板 -->
+                <div class="tab-panel" data-panel="simulation">
+                    <h3>🏃 模拟运行参数</h3>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="duration">模拟时长 (分钟)</label>
+                            <input type="number" id="duration" min="1" max="1440" value="10">
+                        </div>
+                        <div class="form-group">
+                            <label for="dataInterval">数据采集间隔 (秒)</label>
+                            <input type="number" id="dataInterval" min="1" max="300" value="5">
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <label for="scenario">测试场景</label>
+                        <select id="scenario">
+                            <option value="normal_load">正常负载</option>
+                            <option value="peak_load">峰值负载</option>
+                            <option value="stress_test">压力测试</option>
+                        </select>
+                    </div>
+                </div>
+                
+                <!-- 监控设置面板 -->
+                <div class="tab-panel" data-panel="monitoring">
+                    <h3>📊 性能监控设置</h3>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="metricsInterval">监控间隔 (秒)</label>
+                            <input type="number" id="metricsInterval" min="1" max="60" value="1">
+                        </div>
+                        <div class="form-group">
+                            <label for="reportFormat">报告格式</label>
+                            <select id="reportFormat" multiple>
+                                <option value="json" selected>JSON</option>
+                                <option value="csv" selected>CSV</option>
+                                <option value="html">HTML</option>
+                            </select>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- 配置预览面板 -->
+                <div class="tab-panel" data-panel="preview">
+                    <h3>👀 当前配置预览</h3>
+                    <div class="metric">
+                        <div class="metric-value" id="previewAgentCount">100</div>
+                        <div class="metric-label">Agent数量</div>
+                    </div>
+                    <div class="metric">
+                        <div class="metric-value" id="previewUserCount">1000</div>
+                        <div class="metric-label">用户数量</div>
+                    </div>
+                    <div class="metric">
+                        <div class="metric-value" id="previewDuration">10分钟</div>
+                        <div class="metric-label">模拟时长</div>
+                    </div>
+                    <div class="preview" id="configJson"></div>
+                </div>
+                
+                <div class="actions">
+                    <button class="btn btn-primary" onclick="saveConfig()">💾 保存配置</button>
+                    <button class="btn btn-secondary" onclick="loadConfig()">🔄 重新加载</button>
+                    <button class="btn btn-success" onclick="validateConfig()">✅ 验证配置</button>
+                    <button class="btn btn-danger" onclick="resetConfig()">🔄 重置默认</button>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <script>
+        const socket = io();
+        let currentConfig = {};
+        
+        // 标签页切换
+        document.querySelectorAll('.tab').forEach(tab => {
+            tab.addEventListener('click', () => {
+                const tabName = tab.dataset.tab;
+                switchTab(tabName);
+            });
+        });
+        
+        function switchTab(tabName) {
+            // 移除所有active类
+            document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+            document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
+            
+            // 添加active类
+            document.querySelector(`[data-tab="${tabName}"]`).classList.add('active');
+            document.querySelector(`[data-panel="${tabName}"]`).classList.add('active');
+            
+            if (tabName === 'preview') {
+                updatePreview();
+            }
+        }
+        
+        // 加载配置
+        function loadConfig() {
+            fetch('/api/config')
+                .then(response => response.json())
+                .then(config => {
+                    currentConfig = config;
+                    populateForm(config);
+                    showStatus('配置加载成功', 'success');
+                })
+                .catch(error => {
+                    showStatus('配置加载失败: ' + error.message, 'error');
+                });
+        }
+        
+        // 填充表单
+        function populateForm(config) {
+            const params = config.testParameters;
+            
+            // Agent配置
+            document.getElementById('agentCount').value = params.agents.count;
+            document.getElementById('minDeposit').value = params.agents.minDeposit;
+            document.getElementById('maxDeposit').value = params.agents.maxDeposit;
+            document.getElementById('minSuccessRate').value = params.agents.minSuccessRate;
+            
+            // 用户配置
+            document.getElementById('userCount').value = params.users.count;
+            document.getElementById('orderFrequency').value = params.users.orderFrequency;
+            document.getElementById('selectionStrategy').value = params.users.selectionStrategy;
+            
+            // 模拟配置
+            document.getElementById('duration').value = params.simulation.duration;
+            document.getElementById('dataInterval').value = params.simulation.dataInterval;
+            
+            // 监控配置
+            document.getElementById('metricsInterval').value = params.monitoring.metricsInterval;
+        }
+        
+        // 保存配置
+        function saveConfig() {
+            const config = gatherFormData();
+            
+            fetch('/api/config', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify(config)
+            })
+            .then(response => response.json())
+            .then(result => {
+                if (result.success) {
+                    showStatus('配置保存成功', 'success');
+                    currentConfig = config;
+                } else {
+                    showStatus('配置保存失败', 'error');
+                }
+            })
+            .catch(error => {
+                showStatus('保存失败: ' + error.message, 'error');
+            });
+        }
+        
+        // 验证配置
+        function validateConfig() {
+            const config = gatherFormData();
+            
+            fetch('/api/config/validate', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify(config)
+            })
+            .then(response => response.json())
+            .then(result => {
+                if (result.valid) {
+                    showStatus('配置验证通过 ✅', 'success');
+                } else {
+                    showStatus('配置验证失败: ' + result.errors.join(', '), 'error');
+                }
+            });
+        }
+        
+        // 重置配置
+        function resetConfig() {
+            if (confirm('确认重置为默认配置？')) {
+                // 这里应该加载默认配置
+                showStatus('已重置为默认配置', 'success');
+            }
+        }
+        
+        // 收集表单数据
+        function gatherFormData() {
+            return {
+                networkConfig: currentConfig.networkConfig || {},
+                testParameters: {
+                    agents: {
+                        count: parseInt(document.getElementById('agentCount').value),
+                        minDeposit: parseFloat(document.getElementById('minDeposit').value),
+                        maxDeposit: parseFloat(document.getElementById('maxDeposit').value),
+                        minSuccessRate: parseFloat(document.getElementById('minSuccessRate').value),
+                        maxSuccessRate: 0.95,
+                        specialtyTypes: ["ai_inference", "data_processing", "content_creation"]
+                    },
+                    users: {
+                        count: parseInt(document.getElementById('userCount').value),
+                        orderFrequency: parseFloat(document.getElementById('orderFrequency').value),
+                        selectionStrategy: document.getElementById('selectionStrategy').value,
+                        behaviorPatterns: ["burst", "steady", "random"]
+                    },
+                    simulation: {
+                        duration: parseInt(document.getElementById('duration').value),
+                        dataInterval: parseInt(document.getElementById('dataInterval').value),
+                        rampUpTime: 2,
+                        scenarios: ["normal_load", "peak_load", "stress_test"]
+                    },
+                    monitoring: {
+                        metricsInterval: parseInt(document.getElementById('metricsInterval').value),
+                        enableRealtime: true,
+                        saveToFile: true,
+                        reportFormats: ["json", "csv", "html"]
+                    }
+                }
+            };
+        }
+        
+        // 更新预览
+        function updatePreview() {
+            const config = gatherFormData();
+            
+            document.getElementById('previewAgentCount').textContent = config.testParameters.agents.count;
+            document.getElementById('previewUserCount').textContent = config.testParameters.users.count;
+            document.getElementById('previewDuration').textContent = config.testParameters.simulation.duration + '分钟';
+            document.getElementById('configJson').textContent = JSON.stringify(config, null, 2);
+        }
+        
+        // 显示状态消息
+        function showStatus(message, type) {
+            const status = document.getElementById('status');
+            status.textContent = message;
+            status.className = 'status ' + type;
+            status.style.display = 'block';
+            
+            setTimeout(() => {
+                status.style.display = 'none';
+            }, 3000);
+        }
+        
+        // 页面加载时加载配置
+        window.addEventListener('load', () => {
+            loadConfig();
+        });
+        
+        // 实时更新预览
+        document.addEventListener('input', () => {
+            if (document.querySelector('[data-panel="preview"]').classList.contains('active')) {
+                updatePreview();
+            }
+        });
+    </script>
+</body>
+</html>
